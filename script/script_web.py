@@ -14,30 +14,33 @@ import shutil
 import re
 import string
 
-def removeHTMLPrefix(f, php_name) :
+def removeHTMLPrefix(filename, php_name) :
 	out_file = open(php_name, 'wb')
+	f = open(filename, 'rb')
 	for line in f :
 		pattern = re.compile('(\s*)xmlns:html="http://www.w3.org/1999/xhtml"(\s*)')
 		new_line = pattern.sub('\\1\\2', line)
 		pattern = re.compile('(\s*)html:(\s*)')
 		new_line = pattern.sub('\\1\\2', new_line)
 		out_file.write(str(new_line))
+	f.close()
 	out_file.close()
+	os.remove(filename)
 
 def parseChapters(files) :
 		
 	chapters = []
+	is_first = True
+	found_first = False
+	filename = ""
+	title = ""
+	i = 0
+	#length added for empty chapters, headers that are line after line
+	length = -1
+	chapters_size = 0
 	if len(files) <= 2 :
 		context = ET.iterparse("../../" + urllib.unquote(files[1]).decode('utf8'), events=('end', ))
-		is_first = True
-		found_first = False
-		buffer = []
-		filename = ""
-		title = ""
-		i = 0
-		#length added for empty chapters, headers that are line after line
-		length = -1
-		chapters_size = 0
+
 		# find class name
 		for event, elem in context:
 			if "class" in elem.attrib and elem.attrib["class"] == u"כותרת":
@@ -54,18 +57,11 @@ def parseChapters(files) :
 			if "class" in elem.attrib and elem.attrib["class"] == class_name :
 				found_first = True
 				if not is_first and length > 0 :
-					f = open(filename, 'rb')
-					removeHTMLPrefix(f, 'content_' + title + '.php')
-					f.close()
-					f = open(filename, 'ab')
-					footer = '</body>\n'
-					footer = footer + '</html>'
-					f.write(footer)
-					f.close()
+					removeHTMLPrefix(filename, 'content_' + title + '.php')
 				is_first = False
 				if length == 0 :
 					i = i - 1
-				title = u"chapter " + str(i)	
+				title = "chapter " + str(i)	
 				filename = format(title + ".xml")
 				with open(filename, 'wb') as f:
 						if length == 0 :
@@ -82,28 +78,52 @@ def parseChapters(files) :
 					with open(filename, 'ab') as f:
 						f.write(ET.tostring(elem, encoding="us-ascii", method="html"))
 		
-		f = open(filename, 'rb')
-		removeHTMLPrefix(f, 'content_' + title + '.php')
-		f.close()
+		removeHTMLPrefix(filename, 'content_' + title + '.php')
 	
 	else :
+
 		remove = []
 		for file in files :
 			found = False
+			is_first = True
+			found_first = False
+			filename = ""
+			title = ""
+			i = 0
 			context = ET.iterparse("../../" + urllib.unquote(file).decode('utf8'), events=('end', ))
 			for event, elem in context:
-				if "class" in elem.attrib and elem.attrib["class"] == "Header-copy":
+				if "class" in elem.attrib and elem.attrib["class"] == "Header-copy" :
 					found = True
-					
-					if elem.text is None :
-						chapters.append(u"פרק " + str(len(chapters) - 1))
-					else :
-						chapters.append(elem.text)
+					found_first = True
+					if not is_first and length > 0 :
+						removeHTMLPrefix(filename, 'content_' + title + '.php')
+					is_first = False
+					if length == 0 :
+						i = i - 1
+					title = "chapter " + str(len(chapters))	
+					filename = format(title + ".xml")
+					with open(filename, 'wb') as f:
+							if length == 0 :
+								elem.text = chapters[len(chapters) - 1] + elem.text
+								chapters[len(chapters) - 1] = elem.text
+							elif elem.text is None: 
+								chapters.append(u"פרק " + str(len(chapters) - 1))
+							else : 
+								chapters.append(elem.text)
+							
+							f.write(ET.tostring(elem, encoding="us-ascii", method="html"))
+							length = 0
+					i = i + 1
+				else :
+					if found_first and elem.tag == '{http://www.w3.org/1999/xhtml}p':
+						length = length + 1
+						with open(filename, 'ab') as f:
+							f.write(ET.tostring(elem, encoding="us-ascii", method="html"))
+			if found_first:
+				removeHTMLPrefix(filename, 'content_' + title + '.php')
+						
 			if not found :
 				remove.append(file)
-			f = open("../../" + urllib.unquote(file).decode('utf8'), 'rb')
-			removeHTMLPrefix(f, 'content_chapter ' + str(len(chapters) - 1) + '.php')
-			f.close()
 				
 		for f in remove :
 			files.remove(f)
@@ -113,13 +133,10 @@ def getBooklet(all_booklets) :
 	booklet = ""
 	for line in all_booklets :
 		breaked = re.split('=', line)
-		#print breaked
 		if len(breaked) > 1 :
 			pattern = re.compile('booklets\[')
 			if 	re.findall(pattern, line) :
-				#print line
 				pattern = re.compile('\".*\"')
-				#print re.findall(pattern, line)
 				for str in re.findall(pattern, line):
 					booklet = re.sub('\"', '', str)
 				
@@ -130,7 +147,6 @@ def getHebrewName(all_booklets) :
 	hebrew_name = ""
 	for line in all_booklets :
 		breaked = re.split('=', line)
-		#print breaked
 		if len(breaked) > 1 :
 			pattern = re.compile('booklet_description\[')
 			if 	re.findall(pattern, line) :
@@ -139,6 +155,19 @@ def getHebrewName(all_booklets) :
 					#print str
 					hebrew_name = string.replace(str.decode('utf-8'), '"', "")
 	return hebrew_name
+
+def getImage(all_booklets) :
+	image_name = ""
+	for line in all_booklets :
+		breaked = re.split('=', line)
+		if len(breaked) > 1 :
+			pattern = re.compile('images\[')
+			if 	re.findall(pattern, line) :
+				pattern = re.compile('\".*\"')
+				for str in re.findall(pattern, line):
+					image_name = re.sub('\"', '', str)
+	return image_name
+	
 	
 def updateCssFile(booklet) :
 	os.chdir("../booklets/" + booklet + "/OEBPS/css/")
@@ -161,18 +190,22 @@ def updateCssFile(booklet) :
 		
 
 if __name__ == "__main__" :
+	shutil.copy('all_booklets_list.php', '../index/')
 	all_booklets = open('../index/all_booklets_list.php', 'rb')
 	booklet = getBooklet(all_booklets)
 	all_booklets.close()
 	all_booklets = open('../index/all_booklets_list.php', 'rb')
 	hebrew_name = getHebrewName(all_booklets)
+	all_booklets.close()
+	all_booklets = open('../index/all_booklets_list.php', 'rb')
+	image_name = getImage(all_booklets)
+	all_booklets.close()
+	shutil.copy('../booklets/' + booklet + '/' + image_name, '../index/image/')
 	
-	#booklet = raw_input("booklet to work on: ")
-	#booklet = "decision_making"
 	#unzip epub file
 	os.chdir("../booklets/" + booklet)
 	zip_name = glob.glob(u"*.epub")[0]
-	#print zip_name.encode('utf8')
+	print "Unzipping Ebup file"
 	f = open(zip_name, 'rb')
 	zip_file = zipfile.ZipFile(f)
 	zip_file.extractall()
@@ -181,6 +214,7 @@ if __name__ == "__main__" :
 	tree = ET.parse("../booklets/" + booklet + '/OEBPS/content.opf')
 	root = tree.getroot()
 
+	print "Parsing content.opf in order to find relevant chapters files"
 	#parse chapters name
 	chapters = []
 	for element in root.iter('{http://www.idpf.org/2007/opf}itemref') :
@@ -201,6 +235,7 @@ if __name__ == "__main__" :
 
 	os.chdir(out_path)
 	
+	print "Parsing chapters and create php files for each chapter"
 	chapters = parseChapters(links)
 	
 	os.chdir("../../script")
@@ -208,11 +243,14 @@ if __name__ == "__main__" :
 	os.chdir("../booklets/" + booklet)		
 	pdf_path = "../../booklets/" + booklet + "/" + glob.glob("*.pdf")[0].encode('us-ascii')
 	os.chdir("../../script")
+	
+	print "Update php chapters' files"
 
 	shutil.copy('booklet_index.php', '../index/' + booklet + '/')
 	chapter_c = open('../index/' + booklet + '/chapters_c.php','ab')
 	chapter_c.write("<?php\n$title = \"" + hebrew_name.encode('utf-8') + "\";\n")
 	chapter_c.write("$pdf_file = \"" + pdf_path + "\";\n")
+	
 	
 	for i in range(len(chapters)) :
 		template = open('template_chapter.php', 'rb')
@@ -232,13 +270,23 @@ if __name__ == "__main__" :
 	
 	updateCssFile(booklet)
 	
+	print "Copy css, font and image for booklet from unzipped Ebub"
+	
 	prefix = "../booklets/" + booklet + "/OEBPS/"
 	dirs = ["css", "font", "image"]
-	#dirs = [prefix + d for d in dirs]
+	
 	
 	for d in dirs :
 		if not os.path.isdir('../index/' + booklet + '/' + d):
 			os.mkdir('../index/' + booklet + '/' + d)
 		cmd = 'xcopy ..\\booklets\\' + booklet + '\\OEBPS\\' + d + ' ..\\index\\' + booklet + '\\' + d + '\\' ' /e /s'
 		os.system(cmd)
-	print "The booklet in directory " + booklet + "added to \"Good To Know\" website"
+
+	print "Delete unziped files..."
+	cmd = 'rmdir ..\\booklets\\' + booklet + '\\OEBPS' + ' /s /Q'
+	os.system(cmd)
+	cmd = 'rmdir ..\\booklets\\' + booklet + '\\META-INF' + ' /s /Q'
+	os.system(cmd)
+	os.remove("..\\booklets\\" + booklet + "\\mimetype")
+	
+	print "The booklet in directory " + booklet + " added to \"Good To Know\" website"
