@@ -241,15 +241,17 @@ if __name__ == "__main__" :
 	os.chdir("../../script")
 	
 	os.chdir("../booklets/" + booklet)		
-	pdf_path = "../../booklets/" + booklet + "/" + glob.glob("*.pdf")[0].encode('us-ascii')
+	pdf_path = "../booklets/" + booklet + "/" + glob.glob("*.pdf")[0].encode('us-ascii')
+	pdf_name = glob.glob("*.pdf")[0].encode('us-ascii')
 	os.chdir("../../script")
+	shutil.copy(pdf_path, "../index/" + booklet + "/")
 	
 	print "Update php chapters' files"
 
 	shutil.copy('booklet_index.php', '../index/' + booklet + '/')
 	chapter_c = open('../index/' + booklet + '/chapters_c.php','ab')
 	chapter_c.write("<?php\n$title = \"" + hebrew_name.encode('utf-8') + "\";\n")
-	chapter_c.write("$pdf_file = \"" + pdf_path + "\";\n")
+	chapter_c.write("$pdf_file = \"" + pdf_name + "\";\n")
 	
 	
 	for i in range(len(chapters)) :
