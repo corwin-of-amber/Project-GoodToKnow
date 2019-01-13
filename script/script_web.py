@@ -28,7 +28,7 @@ def removeHTMLPrefix(filename, php_name) :
 	os.remove(filename)
 
 def parseChapters(files) :
-		
+
 	chapters = []
 	is_first = True
 	found_first = False
@@ -49,8 +49,8 @@ def parseChapters(files) :
 			class_name = u"כותרת-קטנה"
 		elif booklet == "intro_to_logic" :
 			class_name = u"כותרת _idGenParaOverride-2"
-		else : 
-			class_name = u"כותרת" 
+		else :
+			class_name = u"כותרת"
 		# parsing chapters
 		context = ET.iterparse("../../" + urllib.unquote(files[1]).decode('utf8'), events=('end', ))
 		for event, elem in context:
@@ -61,13 +61,13 @@ def parseChapters(files) :
 				is_first = False
 				if length == 0 :
 					i = i - 1
-				title = "chapter " + str(i)	
+				title = "chapter " + str(i)
 				filename = format(title + ".xml")
 				with open(filename, 'wb') as f:
 						if length == 0 :
 							elem.text = chapters[len(chapters) - 1] + elem.text
 							chapters[len(chapters) - 1] = elem.text
-						else : 
+						else :
 							chapters.append(elem.text)
 						f.write(ET.tostring(elem, encoding="us-ascii", method="html"))
 						length = 0
@@ -77,9 +77,9 @@ def parseChapters(files) :
 					length = length + 1
 					with open(filename, 'ab') as f:
 						f.write(ET.tostring(elem, encoding="us-ascii", method="html"))
-		
+
 		removeHTMLPrefix(filename, 'content_' + title + '.php')
-	
+
 	else :
 
 		remove = []
@@ -100,17 +100,17 @@ def parseChapters(files) :
 					is_first = False
 					if length == 0 :
 						i = i - 1
-					title = "chapter " + str(len(chapters))	
+					title = "chapter " + str(len(chapters))
 					filename = format(title + ".xml")
 					with open(filename, 'wb') as f:
 							if length == 0 :
 								elem.text = chapters[len(chapters) - 1] + elem.text
 								chapters[len(chapters) - 1] = elem.text
-							elif elem.text is None: 
+							elif elem.text is None:
 								chapters.append(u"פרק " + str(len(chapters) - 1))
-							else : 
+							else :
 								chapters.append(elem.text)
-							
+
 							f.write(ET.tostring(elem, encoding="us-ascii", method="html"))
 							length = 0
 					i = i + 1
@@ -121,14 +121,14 @@ def parseChapters(files) :
 							f.write(ET.tostring(elem, encoding="us-ascii", method="html"))
 			if found_first:
 				removeHTMLPrefix(filename, 'content_' + title + '.php')
-						
+
 			if not found :
 				remove.append(file)
-				
+
 		for f in remove :
 			files.remove(f)
 	return chapters
-	
+
 def getBooklet(all_booklets) :
 	booklet = ""
 	for line in all_booklets :
@@ -139,8 +139,7 @@ def getBooklet(all_booklets) :
 				pattern = re.compile('\".*\"')
 				for str in re.findall(pattern, line):
 					booklet = re.sub('\"', '', str)
-				
-	print "Current directory we are working on: " + booklet
+
 	return booklet
 
 def getHebrewName(all_booklets) :
@@ -167,12 +166,12 @@ def getImage(all_booklets) :
 				for str in re.findall(pattern, line):
 					image_name = re.sub('\"', '', str)
 	return image_name
-	
-	
+
+
 def updateCssFile(booklet) :
 	os.chdir("../booklets/" + booklet + "/OEBPS/css/")
 	path = "../booklets/" + booklet + "/OEBPS/css/" + glob.glob("*.css")[0].encode('us-ascii')
-	os.chdir("../../../../script/")
+	os.chdir(starting_dir)
 	out_file = open(path + '.tmp', 'wb')
 	css_file = open(path, 'rb')
 	for line in css_file :
@@ -183,13 +182,35 @@ def updateCssFile(booklet) :
 	css_file.close()
 	os.rename(path, path + '.old')
 	shutil.move(path + '.tmp', path)
-	
-	
-				
-				
-		
+
+
+def copyDirs(src_dir, subdir_names, dest_dir):
+	if sys.platform == 'win32':
+		src_dir_win = src_dir.replace("/", "\\")
+		dest_dir_win = src_dir.replace("/", "\\")
+
+		for d in subdir_names:
+			dest_subdir = dest_dir + '/' + d
+			if not os.path.isdir(dest_subdir): os.mkdir(dest_subdir)
+			cmd = 'xcopy ' + dest_dir_win + '\\' + d + ' ' + dest_dir_win + '\\' + booklet + '\\' + d + '\\' ' /e /s'
+			os.system(cmd)
+
+	else:
+		for d in subdir_names:
+			src_subdir = os.path.join(src_dir, d)
+			dest_subdir = os.path.join(dest_dir, d)
+			if os.path.isdir(dest_subdir): shutil.rmtree(dest_subdir)
+			shutil.copytree(src_subdir, dest_subdir)
+
+
+
+starting_dir = os.path.dirname(os.path.abspath(__file__))
+
 
 if __name__ == "__main__" :
+	cwd = os.getcwd()
+	os.chdir(starting_dir)
+
 	shutil.copy('all_booklets_list.php', '../index/')
 	all_booklets = open('../index/all_booklets_list.php', 'rb')
 	booklet = getBooklet(all_booklets)
@@ -200,8 +221,11 @@ if __name__ == "__main__" :
 	all_booklets = open('../index/all_booklets_list.php', 'rb')
 	image_name = getImage(all_booklets)
 	all_booklets.close()
+	print( "Current directory we are working on: " +
+	       os.path.relpath(os.path.join(starting_dir, "../booklets/", booklet), cwd) )
+
 	shutil.copy('../booklets/' + booklet + '/' + image_name, '../index/image/')
-	
+
 	#unzip epub file
 	os.chdir("../booklets/" + booklet)
 	zip_name = glob.glob(u"*.epub")[0]
@@ -209,8 +233,8 @@ if __name__ == "__main__" :
 	f = open(zip_name, 'rb')
 	zip_file = zipfile.ZipFile(f)
 	zip_file.extractall()
-	os.chdir("../../script")
-	
+	os.chdir(starting_dir)
+
 	tree = ET.parse("../booklets/" + booklet + '/OEBPS/content.opf')
 	root = tree.getroot()
 
@@ -228,32 +252,32 @@ if __name__ == "__main__" :
 			if element.attrib.get('id') == chapter :
 				#links are paths from the main directory (from project)
 				links.append( "booklets/" + booklet + "/OEBPS/" + element.attrib.get('href'))
-	
-	out_path = 	'../index/' + booklet 		
+
+	out_path = 	'../index/' + booklet
 	if not os.path.isdir(out_path):
 		os.mkdir(out_path)
 
 	os.chdir(out_path)
-	
+
 	print "Parsing chapters and create php files for each chapter"
 	chapters = parseChapters(links)
-	
-	os.chdir("../../script")
-	
-	os.chdir("../booklets/" + booklet)		
+
+	os.chdir(starting_dir)
+
+	os.chdir("../booklets/" + booklet)
 	pdf_path = "../booklets/" + booklet + "/" + glob.glob("*.pdf")[0].encode('us-ascii')
 	pdf_name = glob.glob("*.pdf")[0].encode('us-ascii')
-	os.chdir("../../script")
+	os.chdir(starting_dir)
 	shutil.copy(pdf_path, "../index/" + booklet + "/")
-	
+
 	print "Update php chapters' files"
 
 	shutil.copy('booklet_index.php', '../index/' + booklet + '/')
 	chapter_c = open('../index/' + booklet + '/chapters_c.php','ab')
 	chapter_c.write("<?php\n$title = \"" + hebrew_name.encode('utf-8') + "\";\n")
 	chapter_c.write("$pdf_file = \"" + pdf_name + "\";\n")
-	
-	
+
+
 	for i in range(len(chapters)) :
 		template = open('template_chapter.php', 'rb')
 		php_file = open('../index/' + booklet + '/chapter_' + str(i) + '.php','ab')
@@ -269,26 +293,22 @@ if __name__ == "__main__" :
 		php_file.close()
 		chapter_c.write("$chapters[" + str(i) + "] = \"" + chapters[i].encode('utf8').replace('"', '\\"') + "\";\n")
 	chapter_c.write("?>")
-	
-	updateCssFile(booklet)
-	
-	print "Copy css, font and image for booklet from unzipped Ebub"
-	
-	prefix = "../booklets/" + booklet + "/OEBPS/"
-	dirs = ["css", "font", "image"]
-	
-	
-	for d in dirs :
-		if not os.path.isdir('../index/' + booklet + '/' + d):
-			os.mkdir('../index/' + booklet + '/' + d)
-		cmd = 'xcopy ..\\booklets\\' + booklet + '\\OEBPS\\' + d + ' ..\\index\\' + booklet + '\\' + d + '\\' ' /e /s'
-		os.system(cmd)
 
-	print "Delete unziped files..."
-	cmd = 'rmdir ..\\booklets\\' + booklet + '\\OEBPS' + ' /s /Q'
-	os.system(cmd)
-	cmd = 'rmdir ..\\booklets\\' + booklet + '\\META-INF' + ' /s /Q'
-	os.system(cmd)
-	os.remove("..\\booklets\\" + booklet + "\\mimetype")
-	
-	print "The booklet in directory " + booklet + " added to \"Good To Know\" website"
+	updateCssFile(booklet)
+
+	print( "Copy css, font and image for booklet from unzipped Ebub" )
+
+	src_dir = '../booklets/' + booklet + '/OEBPS'
+	dest_dir = '../index/' + booklet
+	dirs = ["css", "font", "image"]
+
+	copyDirs(src_dir, dirs, dest_dir)
+
+	print( "Delete unzipped files..." )
+
+	shutil.rmtree('../booklets/' + booklet + '/OEBPS')
+	shutil.rmtree('../booklets/' + booklet + '/META-INF')
+	os.remove("../booklets/" + booklet + "/mimetype")
+
+	print( "The booklet in directory " + booklet + " added to \"Good To Know\" website" )
+	print( "  at " + os.path.relpath(os.path.join(starting_dir, "../index/", booklet), cwd) )
